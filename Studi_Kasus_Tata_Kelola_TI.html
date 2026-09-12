@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Satu Atap, Banyak Sistem — Studi Kasus Tata Kelola TI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper: #FBF7F0;
+    --paper-deep: #F3EBDD;
+    --white: #FFFFFF;
+    --coffee: #3B2A1E;
+    --coffee-deep: #2A1D14;
+    --walnut: #6B4A30;
+    --walnut-soft: #8A6446;
+    --gold: #B8862F;
+    --gold-light: #E4C878;
+    --ink: #2E2115;
+    --muted: #7A6A56;
+    --muted-on-dark: #CBB89A;
+    --line: rgba(59,42,30,0.14);
+    --line-on-dark: rgba(228,200,120,0.25);
+    --ease: cubic-bezier(.22,.61,.36,1);
+  }
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin:0;
+    font-family:'Plus Jakarta Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height:1.55;
+    cursor: default;
+  }
+  h1,h2,h3, .serif{ font-family:'Fraunces', serif; font-feature-settings: "ss01"; }
+  a{ color: inherit; }
+  img{ max-width:100%; display:block; }
+  ::selection{ background: var(--gold); color: white; }
+  .eyebrow, .num, .l, .lead + .scroll-cue, .fw-tab .tab-f{ letter-spacing: .04em; }
+
+  /* ---------- grain / paper texture overlay ---------- */
+  .grain{
+    position: fixed; inset: 0; z-index: 4000; pointer-events: none;
+    opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- top scroll progress ---------- */
+  .progress-rail{ position: fixed; top:0; left:0; width:100%; height: 3px; z-index: 3000; background: rgba(0,0,0,0.06); }
+  .progress-fill{ height:100%; width:0%; background: linear-gradient(90deg, var(--walnut), var(--gold), var(--gold-light)); transition: width .08s linear; }
+
+  /* ---------- custom cursor (desktop only) ---------- */
+  .cursor-dot{
+    position: fixed; top:0; left:0; width: 10px; height:10px; border-radius:50%;
+    background: var(--gold); pointer-events:none; z-index: 3500; mix-blend-mode: difference;
+    transform: translate(-50%,-50%); transition: transform .12s var(--ease), width .2s ease, height .2s ease, opacity .2s ease;
+    opacity: 0;
+  }
+  .cursor-ring{
+    position: fixed; top:0; left:0; width: 34px; height:34px; border-radius:50%;
+    border: 1px solid var(--gold-light); pointer-events:none; z-index: 3499;
+    transform: translate(-50%,-50%); transition: transform .28s var(--ease), width .25s ease, height .25s ease, opacity .3s ease, border-color .3s ease;
+    opacity: 0;
+  }
+  @media (hover:hover) and (pointer:fine){
+    .cursor-dot, .cursor-ring{ opacity: 1; }
+    body{ cursor: none; }
+    a, button, .fw-tab, .konteks-photo{ cursor: none; }
+  }
+
+  /* ---------- reveal-on-scroll ---------- */
+  [data-reveal]{
+    opacity: 0; transform: translateY(30px);
+    transition: opacity .9s var(--ease), transform .9s var(--ease);
+    transition-delay: var(--d, 0s);
+  }
+  [data-reveal].in-view{ opacity: 1; transform: translateY(0); }
+  [data-reveal="scale"]{ transform: translateY(20px) scale(.96); }
+  [data-reveal="scale"].in-view{ transform: translateY(0) scale(1); }
+
+  /* ---------- ornamental corner motif (repeated visual identity) ---------- */
+  .corner{
+    position:absolute;
+    width: 46px; height:46px;
+    border: 1.5px solid var(--gold);
+    pointer-events:none;
+  }
+  .corner.tl{ top:14px; left:14px; border-right:none; border-bottom:none; }
+  .corner.tr{ top:14px; right:14px; border-left:none; border-bottom:none; }
+  .corner.bl{ bottom:14px; left:14px; border-right:none; border-top:none; }
+  .corner.br{ bottom:14px; right:14px; border-left:none; border-top:none; }
+  .framed{ position:relative; }
+
+  /* ---------- side nav ---------- */
+  .side-nav{
+    position: fixed; right: 28px; top: 50%; transform: translateY(-50%);
+    display:flex; flex-direction:column; gap:16px; z-index: 50;
+  }
+  .side-nav .dot-wrap{ display:flex; align-items:center; justify-content:flex-end; gap:10px; }
+  .side-nav .dot-label{
+    font-size: 11px; letter-spacing:.06em; text-transform:uppercase; font-weight:600;
+    color: var(--gold-light); opacity:0; transform: translateX(6px);
+    transition: opacity .25s ease, transform .25s ease; white-space:nowrap;
+  }
+  .side-nav.on-light .dot-label{ color: var(--walnut); }
+  .side-nav .dot-wrap:hover .dot-label{ opacity:1; transform: translateX(0); }
+  .side-nav button{
+    width:9px; height:9px; border-radius:50%;
+    border: 1.5px solid rgba(255,255,255,0.6);
+    background: transparent; cursor:pointer; padding:0; flex-shrink:0;
+    transition: all .25s ease;
+  }
+  .side-nav.on-light button{ border-color: var(--muted); }
+  .side-nav button.active{ background: var(--gold); border-color: var(--gold); transform: scale(1.4); }
+  @media (max-width: 860px){ .side-nav{ display:none; } }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    min-height: 100vh;
+    position: relative;
+    display:flex; flex-direction:column; justify-content:center;
+    padding: 6vh 8vw 8vh;
+    color: var(--paper);
+    overflow:hidden;
+  }
+  .hero-bg{
+    position:absolute; inset:-6%;
+    background-image: url('https://images.unsplash.com/photo-1714224479919-49a47aa7b451?fm=jpg&q=80&w=2000&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center 30%;
+    filter: saturate(0.55) contrast(1.05);
+    will-change: transform;
+  }
+  .hero::after{
+    content:"";
+    position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(42,29,20,0.78) 0%, rgba(42,29,20,0.72) 45%, rgba(20,14,9,0.92) 100%);
+  }
+  .hero > *:not(.hero-bg){ position:relative; z-index:2; }
+  .hero .kicker{
+    font-size: 13px; color: var(--gold-light); margin-bottom: 22px;
+    text-transform: uppercase; letter-spacing:.14em; font-weight:600;
+    display:flex; align-items:center; gap:12px;
+  }
+  .hero .kicker::before{ content:""; width:26px; height:1px; background: var(--gold-light); display:inline-block; }
+  .hero h1{
+    font-size: clamp(2.5rem, 5.6vw, 4.6rem);
+    font-weight: 500; font-style: normal; line-height: 1.08; max-width: 17ch; margin: 0 0 14px;
+    font-variation-settings: 'opsz' 60;
+  }
+  .hero h1 em{ font-style: italic; color: var(--gold-light); font-weight:500; }
+  .hero-rule{ width: 70px; height: 2px; background: var(--gold); margin: 22px 0 26px; position:relative; overflow:hidden; }
+  .hero-rule::after{ content:""; position:absolute; inset:0; background: var(--gold-light); transform: translateX(-100%); animation: ruleSweep 2.4s .6s var(--ease) forwards; }
+  @keyframes ruleSweep{ to{ transform: translateX(100%); } }
+  .hero p.lead{ font-size: clamp(1rem, 1.3vw, 1.2rem); color: #EFE4D2; max-width: 48ch; margin: 0 0 44px; }
+  .hero .scroll-cue{ display:flex; align-items:center; gap:12px; color: var(--muted-on-dark); font-size: 12.5px; width: fit-content; text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
+  .hero .scroll-cue .line{ width:36px; height:1px; background: var(--muted-on-dark); position:relative; overflow:hidden; }
+  .hero .scroll-cue .line::after{ content:""; position:absolute; inset:0; background: var(--gold-light); animation: cueSlide 1.8s ease-in-out infinite; }
+  @keyframes cueSlide{ 0%{ transform: translateX(-100%);} 50%{ transform: translateX(0);} 100%{ transform: translateX(100%);} }
+
+  /* ---------- SECTION shells ---------- */
+  section{ padding: 100px 8vw; position:relative; }
+  .section-head{ max-width: 640px; margin-bottom: 56px; }
+  .section-head .num{ color: var(--gold); font-weight:700; font-size:13px; margin-bottom:10px; text-transform:uppercase; letter-spacing:.1em; font-family:'JetBrains Mono', monospace; }
+  .section-head h2{ font-size: clamp(1.9rem, 3.2vw, 2.7rem); margin: 0 0 16px; font-weight:500; line-height:1.18; }
+  .section-head p{ color: var(--muted); font-size: 16.5px; max-width: 56ch; }
+
+  /* ---------- KONTEKS ---------- */
+  .konteks{ background: var(--paper); }
+  .konteks-grid{ display:grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items:center; }
+  .brief-card p{ font-size: 17px; color: #3E2E20; margin: 0 0 20px; }
+  .brief-card p:last-child{ margin-bottom:0; }
+  .brief-card .highlight{ color: var(--coffee); font-weight:700; border-bottom: 1.5px solid var(--gold); background: linear-gradient(transparent 65%, rgba(184,134,47,0.18) 65%); }
+  .konteks-photo{ position:relative; border-radius: 4px; overflow:hidden; }
+  .konteks-photo img{ width:100%; height: 420px; object-fit:cover; transition: transform .7s var(--ease); }
+  .konteks-photo:hover img{ transform: scale(1.06); }
+  .konteks-photo .corner{ border-color: var(--gold); }
+  .konteks-stats{
+    display:flex; gap: 18px; margin-top: 36px; flex-wrap:wrap;
+  }
+  .konteks-stats .stat{ flex:1; min-width:150px; }
+  .konteks-stats .n{ font-family:'Fraunces',serif; font-size: 44px; font-weight:600; color: var(--gold); line-height:1; font-variation-settings: 'opsz' 40; }
+  .konteks-stats .l{ font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+  /* ---------- VIDEO PENJELASAN ---------- */
+  .video-section{ background: var(--paper-deep); }
+  .video-frame{
+    position: relative; border-radius: 8px; overflow: hidden; max-width: 900px; margin: 0 auto;
+    box-shadow: 0 30px 60px -20px rgba(42,29,20,0.35);
+    border: 1px solid var(--line); background: var(--coffee-deep);
+  }
+  .video-frame video{ width:100%; display:block; aspect-ratio: 16/9; background: var(--coffee-deep); object-fit: cover; }
+  .video-frame iframe{ width:100%; aspect-ratio: 16/9; border:0; display:block; }
+  .video-poster{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background-size: cover; background-position:center;
+    cursor: pointer; transition: opacity .5s var(--ease);
+  }
+  .video-poster::before{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(20,14,9,0.35) 0%, rgba(20,14,9,0.55) 100%);
+  }
+  .video-poster.hidden{ opacity:0; pointer-events:none; }
+  .play-btn{
+    position:relative; z-index:2; width: 78px; height:78px; border-radius:50%;
+    background: rgba(251,247,240,0.14); border: 1.5px solid var(--gold-light);
+    display:flex; align-items:center; justify-content:center;
+    backdrop-filter: blur(2px);
+    transition: transform .3s var(--ease), background .3s ease;
+  }
+  .play-btn::after{
+    content:""; position:absolute; inset:-14px; border-radius:50%; border: 1px solid rgba(228,200,120,0.5);
+    animation: playPulse 2.4s ease-out infinite;
+  }
+  @keyframes playPulse{ 0%{ transform: scale(.85); opacity:.9; } 100%{ transform: scale(1.35); opacity:0; } }
+  .video-poster:hover .play-btn{ transform: scale(1.08); background: rgba(251,247,240,0.24); }
+  .play-btn svg{ width:26px; height:26px; fill: var(--gold-light); margin-left:4px; }
+  .video-caption{ position:relative; z-index:2; text-align:center; margin-top: 22px; color: var(--muted); font-size: 14px; }
+
+  /* ---------- FRAMEWORK / INTERACTIVE ---------- */
+  .framework{ background: var(--coffee-deep); color: var(--paper); }
+  .framework .section-head p{ color: var(--muted-on-dark); }
+  .fw-layout{
+    display:grid; grid-template-columns: 300px 1fr; gap: 0;
+    border: 1px solid var(--line-on-dark); border-radius: 6px; overflow:hidden;
+    background: var(--coffee); position:relative;
+  }
+  .fw-tabs{ display:flex; flex-direction:column; border-right: 1px solid var(--line-on-dark); }
+  .fw-tab{
+    display:flex; align-items:center; gap: 16px; padding: 22px 26px; cursor:pointer;
+    border-bottom: 1px solid var(--line-on-dark); background: transparent; transition: background .25s ease;
+    position: relative; overflow:hidden;
+  }
+  .fw-tab:last-child{ border-bottom:none; }
+  .fw-tab:hover{ background: rgba(228,200,120,0.06); }
+  .fw-tab.active{ background: rgba(228,200,120,0.1); }
+  .fw-tab .autoplay-bar{
+    position:absolute; left:0; bottom:0; height:2px; width:0%;
+    background: var(--gold-light); opacity:.85;
+  }
+  .fw-tab.active .autoplay-bar.running{ animation: fillBar 6s linear forwards; }
+  @keyframes fillBar{ from{ width:0%; } to{ width:100%; } }
+  .fw-tab .tab-num{ font-family:'Fraunces',serif; font-size:21px; color: var(--muted-on-dark); min-width: 30px; transition: color .3s ease, transform .3s var(--ease); }
+  .fw-tab.active .tab-num{ color: var(--gold-light); transform: scale(1.08); }
+  .fw-tab .tab-text{ flex:1; }
+  .fw-tab .tab-q{ font-size: 14.5px; font-weight:700; margin-bottom: 3px; color: var(--paper); }
+  .fw-tab .tab-f{ font-size: 12px; color: var(--muted-on-dark); font-family:'JetBrains Mono', monospace; }
+  .fw-tab.active .tab-f{ color: var(--gold-light); font-weight:500; }
+
+  .fw-panel{ padding: 44px 48px; position: relative; min-height: 460px; }
+  .fw-panel-inner{ transition: opacity .32s var(--ease), transform .32s var(--ease); }
+  .fw-panel-inner.morph-out{ opacity:0; transform: translateY(14px) scale(.985); }
+  .fw-panel .panel-eyebrow{ display:flex; align-items:center; gap:14px; margin-bottom: 22px; }
+  .fw-panel .icon-badge{
+    width: 46px; height:46px; border-radius:50%; background: var(--gold);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    transition: transform .4s var(--ease);
+  }
+  .fw-panel .icon-badge.pop{ animation: badgePop .5s var(--ease); }
+  @keyframes badgePop{ 0%{ transform: scale(.4) rotate(-30deg); } 60%{ transform: scale(1.15) rotate(6deg);} 100%{ transform: scale(1) rotate(0);} }
+  .fw-panel .icon-badge svg{ width:22px; height:22px; stroke: var(--coffee-deep); fill:none; stroke-width:2; }
+  .fw-panel .panel-focus{ font-size: 12.5px; color: var(--muted-on-dark); font-family:'JetBrains Mono', monospace; }
+  .fw-panel .panel-focus b{ color: var(--gold-light); font-weight:600; }
+  .fw-panel h3{ font-size: clamp(1.45rem, 2vw, 1.95rem); margin: 0 0 26px; max-width: 30ch; font-weight:500; color: var(--paper); }
+  .point-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .point{
+    background: rgba(228,200,120,0.06); border: 1px solid var(--line-on-dark); border-radius: 6px; padding: 18px 20px;
+    opacity:0; transform: translateY(16px);
+    animation: pointIn .55s var(--ease) forwards;
+    animation-delay: var(--pd, 0s);
+    transition: border-color .25s ease, background .25s ease, transform .25s ease;
+  }
+  .point:hover{ border-color: var(--gold); background: rgba(228,200,120,0.1); transform: translateY(-3px); }
+  @keyframes pointIn{ to{ opacity:1; transform: translateY(0); } }
+  .point .pt{ font-weight:700; font-size:14.5px; margin-bottom:6px; color: var(--gold-light); }
+  .point .pd{ font-size: 13px; color: var(--muted-on-dark); line-height:1.45; }
+  .panel-note{ margin-top: 26px; font-size: 13.5px; font-style: italic; color: var(--gold-light); border-left: 2px solid var(--gold); padding-left: 14px; font-family:'Fraunces', serif; }
+  .fw-nav-arrows{ display:flex; gap:10px; margin-top:30px; }
+  .fw-nav-arrows button{
+    width:38px; height:38px; border-radius:50%; border:1px solid var(--line-on-dark); background:transparent;
+    color: var(--paper); display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition: border-color .2s ease, background .2s ease, transform .2s ease;
+  }
+  .fw-nav-arrows button:hover{ border-color: var(--gold); background: rgba(228,200,120,0.1); transform: translateY(-2px); }
+  .fw-nav-arrows svg{ width:16px; height:16px; stroke: var(--gold-light); fill:none; stroke-width:2; }
+
+  @media (max-width: 860px){
+    .fw-layout{ grid-template-columns: 1fr; }
+    .fw-tabs{ flex-direction:row; overflow-x:auto; border-right:none; border-bottom:1px solid var(--line-on-dark); }
+    .fw-tab{ flex-direction:column; align-items:flex-start; min-width: 200px; border-bottom:none; border-right:1px solid var(--line-on-dark); }
+    .point-grid{ grid-template-columns: 1fr; }
+    .konteks-grid{ grid-template-columns: 1fr; }
+    .konteks-photo img{ height: 280px; }
+  }
+
+  /* ---------- interlude strip: books photo ---------- */
+  .interlude{
+    display:flex; align-items:stretch; min-height: 220px;
+    background: var(--paper-deep);
+  }
+  .interlude .photo{ flex: 0 0 42%; position:relative; overflow:hidden; }
+  .interlude .photo img{ width:100%; height:100%; object-fit:cover; min-height:220px; transition: transform .8s var(--ease); }
+  .interlude:hover .photo img{ transform: scale(1.05); }
+  .interlude .text{ flex:1; display:flex; flex-direction:column; justify-content:center; padding: 40px 6vw; }
+  .interlude .text .num{ color: var(--gold); font-weight:700; font-size:12.5px; margin-bottom:10px; text-transform:uppercase; letter-spacing:.08em; font-family:'JetBrains Mono', monospace; }
+  .interlude .text p{ font-size: 18px; color: var(--coffee); max-width: 52ch; margin:0; font-family:'Fraunces',serif; font-style: italic; font-weight:400; line-height:1.5; }
+  @media (max-width: 860px){ .interlude{ flex-direction:column; } .interlude .photo{ flex-basis: 220px; } }
+
+  /* ---------- SYNTHESIS ---------- */
+  .synthesis{ position:relative; color: var(--paper); padding-top: 120px; padding-bottom: 60px; overflow:hidden; }
+  .synthesis-bg{
+    position:absolute; inset:-6%;
+    background-image: url('https://images.unsplash.com/photo-1741061966372-8e7e2c221de7?fm=jpg&q=80&w=1600&auto=format&fit=crop');
+    background-size: cover; background-position: center; filter: saturate(0.5);
+    will-change: transform;
+  }
+  .synthesis::after{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(42,29,20,0.93) 0%, rgba(42,29,20,0.9) 100%);
+  }
+  .synthesis > *:not(.synthesis-bg){ position:relative; z-index:2; }
+  .synthesis .section-head{ max-width: 780px; }
+  .synthesis .section-head p{ display:none; }
+  .synthesis h2{ font-size: clamp(1.9rem,3.2vw,2.5rem); }
+  .synthesis p.big{ font-size: 19.5px; color:#EFE4D2; max-width: 68ch; margin-bottom: 36px; }
+  .synthesis p.big b{ color: var(--gold-light); }
+  .chip-row{ display:flex; flex-wrap:wrap; gap: 10px; margin-bottom: 50px; }
+  .chip{
+    border: 1px solid var(--gold); background: rgba(184,134,47,0.15); color: var(--gold-light);
+    padding: 9px 18px; border-radius: 30px; font-size: 13.5px; font-weight:500;
+    transition: background .25s ease, transform .25s ease;
+  }
+  .chip:hover{ background: rgba(184,134,47,0.32); transform: translateY(-2px); }
+  .closing-line{ display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap: 20px; border-top:1px solid var(--line-on-dark); padding-top: 28px; }
+  .closing-line .who{ font-family:'Fraunces',serif; font-size: 21px; font-weight:500; color: var(--paper); }
+  .closing-line .meta{ color: var(--muted-on-dark); font-size: 13.5px; font-family:'JetBrains Mono', monospace; }
+
+  footer{ background: var(--coffee-deep); color: var(--muted-on-dark); text-align:center; padding: 26px; font-size: 12.5px; font-family:'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+
+<div class="grain"></div>
+<div class="progress-rail"><div class="progress-fill" id="progressFill"></div></div>
+<div class="cursor-dot" id="cursorDot"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<nav class="side-nav" aria-label="Navigasi halaman">
+  <div class="dot-wrap"><span class="dot-label">Beranda</span><button data-target="#hero" class="active" aria-label="Beranda"></button></div>
+  <div class="dot-wrap"><span class="dot-label">Konteks</span><button data-target="#konteks" aria-label="Konteks"></button></div>
+  <div class="dot-wrap"><span class="dot-label">Video</span><button data-target="#video" aria-label="Video"></button></div>
+  <div class="dot-wrap"><span class="dot-label">Kerangka</span><button data-target="#framework" aria-label="Kerangka"></button></div>
+  <div class="dot-wrap"><span class="dot-label">Sintesis</span><button data-target="#synthesis" aria-label="Sintesis"></button></div>
+</nav>
+
+<section class="hero" id="hero">
+  <div class="hero-bg" id="heroBg"></div>
+  <div class="kicker" data-reveal style="--d:.05s">Studi Kasus — Tata Kelola Teknologi Informasi</div>
+  <h1 data-reveal style="--d:.15s">Ketika banyak sistem<br>harus menjadi <em>satu atap.</em></h1>
+  <div class="hero-rule" data-reveal style="--d:.3s"></div>
+  <p class="lead" data-reveal style="--d:.4s">Sebuah universitas memutuskan melebur aplikasi akademiknya yang terpisah menjadi satu platform. Di balik keputusan yang terdengar sederhana ini, ada pertaruhan besar yang hanya bisa dijawab lewat tata kelola TI yang matang.</p>
+  <div class="scroll-cue" data-reveal style="--d:.55s"><div class="line"></div> Gulir untuk membaca ceritanya</div>
+</section>
+
+<section class="konteks" id="konteks">
+  <div class="section-head" data-reveal>
+    <div class="num">01 — Latar Belakang</div>
+    <h2>Kenapa proyek sesederhana ini bisa berisiko besar</h2>
+    <p>Di permukaan, ini terdengar seperti proyek IT biasa. Tapi tiga kata "mahal, lintas unit, berisiko" mengubahnya menjadi ujian tata kelola.</p>
+  </div>
+  <div class="konteks-grid">
+    <div class="brief-card" data-reveal style="--d:.1s">
+      <p>Selama bertahun-tahun, unit akademik, keuangan, dan kemahasiswaan di universitas ini berjalan dengan aplikasi masing-masing. Data tersebar, proses tumpang tindih, dan setiap unit punya "versi kebenaran" sendiri. Solusinya tampak jelas: satukan semuanya ke dalam <span class="highlight">satu platform terintegrasi</span>.</p>
+      <p>Tapi menyatukan sistem berarti menyatukan proses, data, dan kepentingan banyak pihak sekaligus. Proyek jenis ini kerap gagal bukan karena teknologinya buruk, melainkan karena keputusannya diserahkan ke tim IT sendirian tanpa arahan strategis, tanpa pengelolaan risiko, dan tanpa ukuran keberhasilan yang jelas dari awal.</p>
+      <p>Di sinilah IT Governance berperan: bukan mengelola teknologi, melainkan mengelola keputusan di sekitarnya.</p>
+      <div class="konteks-stats">
+        <div class="stat"><div class="n" data-count="5">0</div><div class="l">unit kerja yang datanya harus disatukan</div></div>
+        <div class="stat"><div class="n" data-count="1">0</div><div class="l">sumber data tunggal pengganti sistem lama</div></div>
+        <div class="stat"><div class="n" data-count="0" data-suffix="">0</div><div class="l">ruang untuk anggapan "cuma proyek IT"</div></div>
+      </div>
+    </div>
+    <div class="konteks-photo framed" data-reveal="scale" style="--d:.2s">
+      <img src="https://images.unsplash.com/photo-1747502064507-ed08d79802db?fm=jpg&q=80&w=1200&auto=format&fit=crop" alt="Halaman kampus universitas">
+      <div class="corner tl"></div>
+      <div class="corner br"></div>
+    </div>
+  </div>
+</section>
+
+<div class="interlude" data-reveal>
+  <div class="photo">
+    <img src="https://images.unsplash.com/photo-1595123550441-d377e017de6a?fm=jpg&q=80&w=1000&auto=format&fit=crop" alt="Rak buku perpustakaan">
+  </div>
+  <div class="text">
+    <div class="num">Sebelum melangkah lebih jauh</div>
+    <p>"Proyek TI yang baik jarang dimulai dari sistemnya. Ia dimulai dari pertanyaan siapa yang bertanggung jawab atas keputusan apa."</p>
+  </div>
+</div>
+
+<section class="video-section" id="video">
+  <div class="section-head" data-reveal>
+    <div class="num">Video Penjelasan</div>
+    <h2>Ringkasan singkat sebelum masuk ke kerangka analisis</h2>
+    <p>Video pendek ini merangkum inti studi kasus sebelum ditelusuri lebih dalam lewat lima lensa tata kelola TI di bawah.</p>
+  </div>
+  <div class="video-frame" data-reveal="scale" id="videoFrame">
+    <div class="video-poster" id="videoPoster"
+      style="background-image:url('poster-studi-kasus.jpg')">
+      <div class="play-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+    </div>
+  </div>
+  <div class="video-caption">Klik untuk memutar penjelasan studi kasus (via YouTube).</div>
+</section>
+
+<section class="framework" id="framework">
+  <div class="section-head" data-reveal>
+    <div class="num">02 — Lensa Analisis</div>
+    <h2>Lima hal yang menentukan berhasil-tidaknya integrasi</h2>
+    <p>Kerangka IT Governance dari ITGI/COBIT membagi pertanyaan besar "bagaimana memastikan proyek ini berhasil" menjadi lima area yang lebih mudah dikelola. Telusuri satu per satu untuk melihat penerapannya pada kasus ini — atau biarkan berjalan sendiri.</p>
+  </div>
+
+  <div class="fw-layout" data-reveal>
+    <div class="fw-tabs" id="fwTabs"></div>
+    <div class="fw-panel" id="fwPanel"></div>
+  </div>
+</section>
+
+<section class="synthesis" id="synthesis">
+  <div class="synthesis-bg" id="synthBg"></div>
+  <div class="section-head" data-reveal>
+    <div class="num">03 — Kesimpulan</div>
+    <h2>Bukan soal teknologi, soal tata kelola</h2>
+  </div>
+  <p class="big" data-reveal style="--d:.1s">Kasus integrasi sistem akademik ini menunjukkan sesuatu yang berlaku luas: proyek TI besar jarang gagal karena pilihan teknisnya salah. Ia gagal ketika salah satu dari lima area ini diabaikan — arah yang tidak jelas, manfaat yang tidak pernah dibuktikan, risiko yang diremehkan, sumber daya yang salah alokasi, atau kinerja yang tidak pernah diukur. <b>Kelima elemen ini harus berjalan bersamaan, bukan bergantian.</b></p>
+  <div class="chip-row" data-reveal style="--d:.2s">
+    <span class="chip">Strategic Alignment</span>
+    <span class="chip">Value Delivery</span>
+    <span class="chip">Risk Management</span>
+    <span class="chip">Resource Management</span>
+    <span class="chip">Performance Measurement</span>
+  </div>
+  <div class="closing-line" data-reveal style="--d:.3s">
+    <div class="meta">25082010190 — Pika Nurnaimmah</div>
+  </div>
+</section>
+
+<footer>Sebuah eksplorasi studi kasus tata kelola teknologi informasi.</footer>
+
+<script>
+const data = [
+  {
+    num: "01", q: "Arah, sebelum aksi", focus: "Strategic Alignment",
+    title: "Sebelum satu baris kode pun ditulis, proyek ini butuh alasan yang jelas",
+    icon: `<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>`,
+    points: [
+      ["Terhubung ke rencana besar universitas", "Integrasi sistem harus mendukung visi digital/smart campus, bukan berdiri sendiri sebagai proyek IT."],
+      ["Menghilangkan kerja berulang", "Selama ini, satu data yang sama diketik ulang di akademik, keuangan, dan kemahasiswaan."],
+      ["Satu versi kebenaran", "Data yang konsisten lintas sistem membuat keputusan pimpinan berpijak pada angka yang sama."],
+      ["Pengalaman yang lebih baik", "Dosen dan mahasiswa merasakan langsung dampaknya, bukan hanya unit IT."],
+    ],
+    note: "Strategi TI selalu mengikuti strategi institusi, bukan sebaliknya."
+  },
+  {
+    num: "02", q: "Nilai, bukan janji", focus: "Value Delivery",
+    title: "Manfaat yang baik adalah manfaat yang bisa dibuktikan angkanya",
+    icon: `<path d="M20 12v9H4v-9"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7S9 3 6.5 4.5C4 6 5 9 12 7z"/><path d="M12 7s3-4 5.5-2.5C20 6 19 9 12 7z"/>`,
+    points: [
+      ["Proses yang jadi lebih cepat", "Contoh sederhana: waktu pengurusan KRS turun dari berhari-hari menjadi seketika."],
+      ["Biaya yang benar-benar turun", "Satu platform berarti satu lisensi dan satu jalur pemeliharaan, bukan banyak."],
+      ["Kepuasan yang bisa disurvei", "Dosen, mahasiswa, dan staf ditanya langsung, bukan diasumsikan puas."],
+      ["Pelaporan yang lebih ringan", "Data yang sudah rapi memudahkan pelaporan ke pihak eksternal seperti Kemendikbudristek."],
+    ],
+    note: "Manfaat yang tidak pernah diukur, pada akhirnya, sulit dibedakan dari klaim semata."
+  },
+  {
+    num: "03", q: "Yang bisa salah", focus: "Risk Management",
+    title: "Proyek sebesar ini punya banyak titik rawan yang layak diawasi lebih dulu",
+    icon: `<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
+    points: [
+      ["Data yang hilang saat berpindah", "Migrasi bertahun-tahun data akademik dan nilai rentan terhadap kesalahan teknis."],
+      ["Orang yang menolak berubah", "Sistem baru hanya berguna kalau benar-benar dipakai, bukan dihindari."],
+      ["Data pribadi yang terekspos", "Masa transisi adalah titik paling rentan bagi kebocoran data mahasiswa."],
+      ["Waktu dan biaya yang membengkak", "Proyek lintas unit terkenal sulit selesai tepat sesuai rencana awal."],
+    ],
+    note: "Risiko yang dipetakan sejak awal jauh lebih murah daripada risiko yang baru disadari di tengah jalan."
+  },
+  {
+    num: "04", q: "Yang paling dibutuhkan", focus: "Resource Management",
+    title: "Beberapa sumber daya lebih menentukan hasil akhir daripada yang lain",
+    icon: `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+    points: [
+      ["Data lama yang bersih dan lengkap", "Sistem baru secanggih apa pun tidak menolong jika data yang dipindahkan berantakan."],
+      ["Dukungan nyata dari pimpinan", "Perubahan yang menyentuh banyak unit butuh otoritas yang lebih tinggi dari IT."],
+      ["Tim IT internal & change agent", "Dibutuhkan pendamping adopsi di tiap unit, bukan hanya tim teknis."],
+      ["Waktu transisi yang realistis", "Sistem lama dan baru biasanya perlu berjalan berdampingan untuk sementara."],
+    ],
+    note: "Yang paling langka dalam proyek ini bukan uang, melainkan data yang bisa dipercaya."
+  },
+  {
+    num: "05", q: "Cara mengetahui berhasil", focus: "Performance Measurement",
+    title: "Tanpa ukuran yang jelas, 'berhasil' hanya jadi kesan, bukan fakta",
+    icon: `<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`,
+    points: [
+      ["Seberapa banyak yang benar-benar memakai", "Sistem baru hanya bernilai jika penggunanya aktif, bukan sekadar tersedia."],
+      ["Seberapa akurat datanya sekarang", "Tingkat kesalahan data pasca-migrasi jadi indikator kualitas paling langsung."],
+      ["Seberapa andal sistemnya berjalan", "Waktu respons dan keandalan layanan dipantau seperti janji layanan pada umumnya."],
+      ["Seberapa hemat dan aman berjalannya", "Penghematan biaya dan minimnya insiden keamanan melengkapi gambaran keberhasilan."],
+    ],
+    note: "Ukuran kinerja yang baik mencakup sisi finansial, pengguna, proses, dan pembelajaran sekaligus."
+  },
+];
+
+const tabsEl = document.getElementById('fwTabs');
+const panelEl = document.getElementById('fwPanel');
+let activeIdx = 0;
+let autoplayTimer = null;
+const AUTOPLAY_MS = 6000;
+
+function renderTabs(idx){
+  tabsEl.innerHTML = data.map((d,i) => `
+    <div class="fw-tab ${i===idx?'active':''}" data-idx="${i}">
+      <div class="autoplay-bar ${i===idx?'running':''}"></div>
+      <div class="tab-num">${d.num}</div>
+      <div class="tab-text">
+        <div class="tab-q">${d.q}</div>
+        <div class="tab-f">${d.focus}</div>
+      </div>
+    </div>
+  `).join('');
+  tabsEl.querySelectorAll('.fw-tab').forEach(el => {
+    el.addEventListener('click', () => {
+      const i = parseInt(el.getAttribute('data-idx'));
+      goTo(i, true);
+    });
+  });
+}
+
+function renderPanelContent(idx){
+  const d = data[idx];
+  panelEl.innerHTML = `
+    <div class="fw-panel-inner" id="fwPanelInner">
+      <div class="panel-eyebrow">
+        <div class="icon-badge pop"><svg viewBox="0 0 24 24">${d.icon}</svg></div>
+        <div class="panel-focus">Fokus area: <b>${d.focus}</b></div>
+      </div>
+      <h3>${d.title}</h3>
+      <div class="point-grid">
+        ${d.points.map((p,i) => `<div class="point" style="--pd:${i*0.06}s"><div class="pt">${p[0]}</div><div class="pd">${p[1]}</div></div>`).join('')}
+      </div>
+      <div class="panel-note">${d.note}</div>
+      <div class="fw-nav-arrows">
+        <button id="fwPrev" aria-label="Sebelumnya"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button id="fwNext" aria-label="Berikutnya"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+      </div>
+    </div>
+  `;
+  document.getElementById('fwPrev').addEventListener('click', () => goTo((activeIdx-1+data.length)%data.length, true));
+  document.getElementById('fwNext').addEventListener('click', () => goTo((activeIdx+1)%data.length, true));
+}
+
+function goTo(idx, manual){
+  if(idx === activeIdx && !manual) return;
+  const inner = document.getElementById('fwPanelInner');
+  const doSwap = () => {
+    activeIdx = idx;
+    renderTabs(activeIdx);
+    renderPanelContent(activeIdx);
+    restartAutoplay();
+  };
+  if(inner){
+    inner.classList.add('morph-out');
+    setTimeout(doSwap, 260);
+  } else {
+    doSwap();
+  }
+}
+
+function restartAutoplay(){
+  clearInterval(autoplayTimer);
+  autoplayTimer = setInterval(() => {
+    goTo((activeIdx+1)%data.length, false);
+  }, AUTOPLAY_MS);
+}
+
+const fwLayoutEl = document.querySelector('.fw-layout');
+fwLayoutEl.addEventListener('mouseenter', () => clearInterval(autoplayTimer));
+fwLayoutEl.addEventListener('mouseleave', () => restartAutoplay());
+
+renderTabs(0);
+renderPanelContent(0);
+restartAutoplay();
+
+/* ---------- side nav scroll spy ---------- */
+const navButtons = document.querySelectorAll('.side-nav button');
+navButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelector(btn.getAttribute('data-target')).scrollIntoView({behavior:'smooth'});
+  });
+});
+const sections = ['#hero','#konteks','#video','#framework','#synthesis'].map(s => document.querySelector(s));
+const sideNav = document.querySelector('.side-nav');
+const spy = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      const idx = sections.indexOf(entry.target);
+      navButtons.forEach(b => b.classList.remove('active'));
+      if(navButtons[idx]) navButtons[idx].classList.add('active');
+      sideNav.classList.toggle('on-light', entry.target.id === 'konteks');
+    }
+  });
+}, { threshold: 0.5 });
+sections.forEach(s => spy.observe(s));
+
+/* ---------- reveal-on-scroll ---------- */
+const revealEls = document.querySelectorAll('[data-reveal]');
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      entry.target.classList.add('in-view');
+      revealObs.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+revealEls.forEach(el => revealObs.observe(el));
+
+/* ---------- counters ---------- */
+const counters = document.querySelectorAll('[data-count]');
+const counterObs = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      const el = entry.target;
+      const target = parseFloat(el.getAttribute('data-count'));
+      const dur = 1200;
+      const start = performance.now();
+      function step(now){
+        const p = Math.min((now-start)/dur, 1);
+        const eased = 1 - Math.pow(1-p, 3);
+        el.textContent = Math.round(target*eased);
+        if(p < 1) requestAnimationFrame(step);
+        else el.textContent = target;
+      }
+      requestAnimationFrame(step);
+      counterObs.unobserve(el);
+    }
+  });
+}, { threshold: 0.6 });
+counters.forEach(el => counterObs.observe(el));
+
+/* ---------- scroll progress + parallax ---------- */
+const progressFill = document.getElementById('progressFill');
+const heroBg = document.getElementById('heroBg');
+const synthBg = document.getElementById('synthBg');
+const heroSection = document.getElementById('hero');
+const synthSection = document.getElementById('synthesis');
+
+function onScroll(){
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  progressFill.style.width = (docHeight > 0 ? (scrollTop/docHeight)*100 : 0) + '%';
+
+  const heroRect = heroSection.getBoundingClientRect();
+  heroBg.style.transform = `translateY(${heroRect.top * -0.25}px)`;
+
+  const synthRect = synthSection.getBoundingClientRect();
+  if(synthRect.top < window.innerHeight && synthRect.bottom > 0){
+    synthBg.style.transform = `translateY(${synthRect.top * -0.15}px)`;
+  }
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+
+/* ---------- video penjelasan (YouTube) ---------- */
+const videoFrame = document.getElementById('videoFrame');
+const videoPoster = document.getElementById('videoPoster');
+const YT_VIDEO_ID = 'EW5owAyBjw0';
+if(videoFrame && videoPoster){
+  videoPoster.addEventListener('click', () => {
+    const iframe = document.createElement('iframe');
+    iframe.src = `https://www.youtube.com/embed/${YT_VIDEO_ID}?autoplay=1&rel=0`;
+    iframe.title = 'Video Penjelasan Studi Kasus';
+    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+    iframe.allowFullscreen = true;
+    videoFrame.appendChild(iframe);
+    videoPoster.classList.add('hidden');
+  }, { once: true });
+}
+
+/* ---------- custom cursor ---------- */
+if(matchMedia('(hover:hover) and (pointer:fine)').matches){
+  const dot = document.getElementById('cursorDot');
+  const ring = document.getElementById('cursorRing');
+  let rx = 0, ry = 0, mx = 0, my = 0;
+  window.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    dot.style.transform = `translate(${mx}px, ${my}px) translate(-50%,-50%)`;
+  });
+  function ringLoop(){
+    rx += (mx-rx)*0.15; ry += (my-ry)*0.15;
+    ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%,-50%)`;
+    requestAnimationFrame(ringLoop);
+  }
+  ringLoop();
+  document.querySelectorAll('a, button, .fw-tab, .konteks-photo, .point, .chip').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      ring.style.width = '54px'; ring.style.height = '54px'; ring.style.borderColor = 'var(--gold)';
+      dot.style.width = '6px'; dot.style.height = '6px';
+    });
+    el.addEventListener('mouseleave', () => {
+      ring.style.width = '34px'; ring.style.height = '34px'; ring.style.borderColor = 'var(--gold-light)';
+      dot.style.width = '10px'; dot.style.height = '10px';
+    });
+  });
+}
+</script>
+
+</body>
+</html>
